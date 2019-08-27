@@ -3,14 +3,15 @@ import struct
 import logging
 
 
-class Capture(object):
+VALID_SOURCE_FORMATS = {'RAW': {'description': '', 'fields': ''},
+                        'DATA_SEPARATED': {'description': '', 'fields': ''}}
+VALID_OUTPUT_FORMATS = {'RAW_SEQ': {'description': '', 'fields': ''},
+                        'RAW_NO_SEQ': {'description': '', 'fields': ''},
+                        'DATA_SEPARATED_SEQ': {'description': '', 'fields': ''},
+                        'DATA_SEPARATED_NO_SEQ': {'description': '', 'fields': ''}}
 
-    VALID_SOURCE_FORMATS = {'RAW': {'description': '', 'fields': ''},
-                            'DATA_SEPARATED': {'description': '', 'fields': ''}}
-    VALID_OUTPUT_FORMATS = {'RAW_SEQ': {'description': '', 'fields': ''},
-                            'RAW_NO_SEQ': {'description': '', 'fields': ''},
-                            'DATA_SEPARATED_SEQ': {'description': '', 'fields': ''},
-                            'DATA_SEPARATED_NO_SEQ': {'description': '', 'fields': ''}}
+
+class Capture(object):
 
     def __init__(self, bind_address='0.0.0.0', source_format='RAW', output_format='RAW_NO_SEQ',
                  message_window_size=16):
@@ -153,27 +154,9 @@ class Capture(object):
 
     @source_format.setter
     def source_format(self, value):
-        if value not in self.VALID_SOURCE_FORMATS:
+        if value not in VALID_SOURCE_FORMATS:
             raise ValueError('source format invalid')
-        if 'RAW' in value and 'DATA' in self.output_format:
-            self._logger.warning('if output format is a DATA_SEPARATED format, source format cannot be a RAW type')
-        elif 'DATA'in value and 'RAW' in self.output_format:
-            self._logger.warning('if output format is a RAW format, source format cannot be a DATA_SEPARATED type')
         self._source_format = value
-
-    @property
-    def output_format(self):
-        return self._output_format
-
-    @output_format.setter
-    def output_format(self, value):
-        if value not in self.VALID_OUTPUT_FORMATS:
-            raise ValueError("output format invalid")
-        if 'DATA'in value and 'RAW' in self.source_format:
-            self._logger.warning('if source format is a RAW format, output format cannot be a DATA_SEPARATED type')
-        elif 'RAW' in value and 'DATA' in self.source_format:
-            self._logger.warning('if source format is a DATA_SEPARATED format, output format cannot be a RAW type')
-        self._output_format = value
 
     @property
     def message_window_size(self):
