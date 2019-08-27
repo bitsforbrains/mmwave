@@ -69,5 +69,6 @@ Capture Object Properties and Methods
   - missing - count of missing messages (gaps in sequence numbers)
 
 **Methods**
+
 - add_sink(<output-sink-instance>) - send an output stream to the specified output sink instance
 - start() - start listening
