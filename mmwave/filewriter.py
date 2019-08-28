@@ -1,13 +1,16 @@
 import logging
 import os
 from time import time
+from dataformats import VALID_OUTPUT_FORMATS
 
 
 class FileWriter(object):
 
-    def __init__(self, output_filename='output.bin', overwrite=False,):
+    def __init__(self, name='FileWriter', output_filename='output.bin', overwrite=False, output_format='RAW_NO_SEQ'):
         self._logger = logging.getLogger(__name__)
+        self._name = name
         self._output_filename = output_filename
+        self._output_format = output_format
         self._overwrite = overwrite
         self._initialized = False
 
@@ -25,6 +28,14 @@ class FileWriter(object):
                 out_file.write(data)
 
     @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, value):
+        self._name = str(value)
+
+    @property
     def output_filename(self):
         return self._output_filename
 
@@ -35,7 +46,16 @@ class FileWriter(object):
         if file_path is not '':
             if not os.path.exists(file_path):
                 raise ValueError('Error setting output filename (path does not exist!)')
-                self._output_filename = value
+
+    @property
+    def output_format(self):
+        return self._output_format
+
+    @output_format.setter
+    def output_format(self, value):
+        if value not in VALID_OUTPUT_FORMATS:
+            raise ValueError("output format invalid")
+        self._output_format = value
 
     @property
     def overwrite(self):

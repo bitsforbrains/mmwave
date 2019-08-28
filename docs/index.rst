@@ -31,17 +31,32 @@ To use the module, create an instances of the Capture object class and an instan
 
 .. code-block:: python
 
-    from mmwave import Capture, FileWriter
+   # import the Capture module and the default file writer output sink
+   from mmwave import Capture, FileWriter
 
-    listener = Capture(source_format='RAW')
-    filesink = FileWriter(overwrite=True)
+   # create new instance of Capture object
+   listener = Capture()
 
-    listener.output_format='RAW_NO_SEQ'
-    filesink.output_filename='~/adc_raw_out.bin'
+   # create new instance of FireWrite output sink
+   # you can set config options by passing them as arguments
+   filesink = FileWriter(output_filename = "/root/adc_raw_seq_out.bin")
 
-    listener.add_sink(filesink)  # register the output sink with the capture instance
+   # you can also set config options as properties
+   filesink.output_format = "RAW_SEQ"  # set the output format to RAW_SEQ
+   filesink.output_overwrite = False
 
-    listener.start() # start listening for traffic on UDP port 4098
+   # add the output sink to the Capture object instance (returns True if successful)
+   if not listener.add_sink(filesink):
+       # put in logic to handle failure adding sink here
+       pass
+
+   # start listening for packets on UDP port 4098
+   # by default, it listens forever for the first packet, and
+   # stops listening if no packet has been sent for 1 second
+   listener.start()
+
+   # view stats for this capture
+   print(listener.stats)
 
 The listener will wait ad infinitum for the first packet, unless program execution is stopped. Once the first packet has been received, the listener will time out and clean up 1s after the last packet is received.
 
@@ -55,11 +70,6 @@ Capture Object Properties and Methods
 - source_format (string, rw) - the source format for the incoming stream, can be one of
   - RAW *(default)*
   - DATA_SEPARATED_MODE *(not yet implemented)*
-- output_format (string, rw) - the output format to send to the sink, can be one of
-  - RAW_NO_SEQ - output file only contains binary capture payload *(default)*
-  - RAW_SEQ - output file contains binary capture payload prepended with message sequence number, message payload size, and total capture size
-  - DATA_SEPARATED_NO_SEQ *(not yet implemented)*
-  - DATA_SEPARATED_SEQ *(not yet implemented)*
 - message_window_size (integer, rw) - the number of messages in the streaming window, valid range is 1-128 *(default is 16)*
 - output_sinks (list of objects, ro) - returns all added output sinks
 - stats (dictionary, ro) - returns execution stats
@@ -72,3 +82,16 @@ Capture Object Properties and Methods
 
 - add_sink(<output-sink-instance>) - send an output stream to the specified output sink instance
 - start() - start listening
+
+Included FileWriter Output Sink Properties and Methods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Properties**
+
+- name (string, rw) - a name tag to uniquely identify this output sink *(default: 'FileWriter')*
+- output_filename (string, rw) - the destination path/filename for the output file *(default: outfile.bin)*
+- output_format (string, rw) - the output format to send to the sink, can be one of
+  - RAW_NO_SEQ - output file only contains binary capture payload *(default)*
+  - RAW_SEQ - output file contains binary capture payload prepended with message sequence number, message payload size, and total capture size
+  - DATA_SEPARATED_NO_SEQ *(not yet implemented)*
+  - DATA_SEPARATED_SEQ *(not yet implemented)*
