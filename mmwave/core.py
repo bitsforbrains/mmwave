@@ -1,24 +1,15 @@
 import socket
 import struct
 import logging
-
-
-VALID_SOURCE_FORMATS = {'RAW': {'description': '', 'fields': ''},
-                        'DATA_SEPARATED': {'description': '', 'fields': ''}}
-VALID_OUTPUT_FORMATS = {'RAW_SEQ': {'description': '', 'fields': ''},
-                        'RAW_NO_SEQ': {'description': '', 'fields': ''},
-                        'DATA_SEPARATED_SEQ': {'description': '', 'fields': ''},
-                        'DATA_SEPARATED_NO_SEQ': {'description': '', 'fields': ''}}
+from dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 
 class Capture(object):
 
-    def __init__(self, bind_address='0.0.0.0', source_format='RAW', output_format='RAW_NO_SEQ',
-                 message_window_size=16):
+    def __init__(self, bind_address='0.0.0.0', source_format='RAW', message_window_size=16):
         self._logger = logging.getLogger(__name__)
         self._bind_address = bind_address
         self._source_format = source_format
-        self._output_format = output_format
         self._output_sinks = []
         self._message_window_size = message_window_size
         self._kill = False
@@ -73,27 +64,29 @@ class Capture(object):
                                  .format(self._currentseq, msg['seq_num']))
             self._stats['missing'] += 1
         self._currentseq = msg['seq_num']
-        # dump to all registered sinks
-        data = b''
-        if self.output_format is 'RAW_NO_SEQ':
-            data = msg['payload']
-        elif self.output_format is 'RAW_SEQ':
-            data = msg['raw_seq'] + msg['raw_payload_size'] + msg['raw_capture_size'] + msg['payload']
+        # dump to all sinks
         for sink in self.output_sinks:
-            sink.receive(data)
+            if self.source_format not in VALID_OUTPUT_FORMATS[sink.output_format]['valid_sources']:
+                self._logger.warn('output format {0} configured for {1} is not compatible with {2} source type'
+                                  .format(sink.output_format, sink.name(), self.source_format))
+            else:
+                data = b''
+                for field in VALID_OUTPUT_FORMATS[sink.output_format]['fields']:
+                    data += msg[field]
+                sink.receive(data)
 
     def _flush_window(self, message_window):
         while len(message_window) > 0:
             self._process_message_window(message_window)
 
     def add_sink(self, output_sink):
-        # todo: add validity checking (is object? has receive method?)
         try:
             if output_sink not in self._output_sinks:
                 self._output_sinks.append(output_sink)
             return True
         except:
             self._logger.error('Unhandled exception adding output sink')
+            return False
 
     def start(self):
         message_window = []

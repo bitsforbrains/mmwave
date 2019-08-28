@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 
 from .core import *
-from .output_sinks import *
+from .filewriter import *
+from .dataformats import *
 
 __version__ = '0.1.0'
 __author__ = "Aaron Finney"
