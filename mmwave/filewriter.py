@@ -15,17 +15,21 @@ class FileWriter(object):
         self._initialized = False
 
     def receive(self, data):
-        if self._initialized is False:
-            self._initialized = True
-            if os.path.isfile(self.output_filename) and not self.overwrite:
-                file_path, file_name = os.path.split(self.output_filename)
-                file_base, file_ext = os.path.splitext(file_name)
-                self.output_filename = os.path.join(file_path, '{0}-{1}{2}'.format(file_base, int(time()), file_ext))
-            with open(self.output_filename, 'wb') as out_file:
-                out_file.write(data)
-        else:
-            with open(self.output_filename, 'ab') as out_file:
-                out_file.write(data)
+        while True:
+            # loop until we receive the termination sequence
+            if data == b'\xAF\xAF':
+                break
+            if self._initialized is False:
+                self._initialized = True
+                if os.path.isfile(self.output_filename) and not self.overwrite:
+                    file_path, file_name = os.path.split(self.output_filename)
+                    file_base, file_ext = os.path.splitext(file_name)
+                    self.output_filename = os.path.join(file_path, '{0}-{1}{2}'.format(file_base, int(time()), file_ext))
+                with open(self.output_filename, 'wb') as out_file:
+                    out_file.write(data)
+            else:
+                with open(self.output_filename, 'ab') as out_file:
+                    out_file.write(data)
 
     @property
     def name(self):

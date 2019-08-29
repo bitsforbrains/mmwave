@@ -1,6 +1,7 @@
 import socket
 import struct
 import logging
+from multiprocessing import Process, Pipe
 from dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 
@@ -11,6 +12,7 @@ class Capture(object):
         self._bind_address = bind_address
         self._source_format = source_format
         self._output_sinks = []
+        self._workers = {}
         self._message_window_size = message_window_size
         self._kill = False
         self._listening = False
@@ -64,25 +66,37 @@ class Capture(object):
                                  .format(self._currentseq, msg['seq_num']))
             self._stats['missing'] += 1
         self._currentseq = msg['seq_num']
-        # dump to all sinks
+        # publish to all sinks. sink processing is parallel, but publishing is serial...
         for sink in self.output_sinks:
             if self.source_format not in VALID_OUTPUT_FORMATS[sink.output_format]['valid_sources']:
                 self._logger.warn('output format {0} configured for {1} is not compatible with {2} source type'
                                   .format(sink.output_format, sink.name(), self.source_format))
             else:
+                ch_out, ch_in = self._workers[sink.__hash__()]['pipe']
                 data = b''
                 for field in VALID_OUTPUT_FORMATS[sink.output_format]['fields']:
                     data += msg[field]
-                sink.receive(data)
+                ch_in.send(data)
 
     def _flush_window(self, message_window):
         while len(message_window) > 0:
             self._process_message_window(message_window)
 
+    def _send_worker_termination_chars(self):
+        for sink in self.output_sinks:
+            ch_out, ch_in = self._workers[sink.__hash__()]['pipe']
+            data = b'\xAF\xAF'
+            ch_in.send(data)
+
     def add_sink(self, output_sink):
         try:
             if output_sink not in self._output_sinks:
                 self._output_sinks.append(output_sink)
+                # set up a worker and communication pipe for the sink
+                self._workers[output_sink.__hash__()] = {}
+                self._workers[output_sink.__hash__()]['pipe'] = Pipe()
+                self._workers[output_sink.__hash__()]['worker'] = (
+                    Process(target=output_sink.receive, args=(self._workers[output_sink.__hash__()]['pipe'],)))
             return True
         except:
             self._logger.error('Unhandled exception adding output sink')
@@ -95,6 +109,10 @@ class Capture(object):
 
         if self.output_sinks is []:
             self._logger.warn("No output sinks registered")
+        # start each sink's worker processes (will run until a termination signal is received)
+        for sink in self.output_sinks:
+            self._workers[sink.__hash__()]['worker'].daemon = True
+            self._workers[sink.__hash__()]['worker'].start()
 
         listener_socket = self._bind()
 
@@ -106,9 +124,10 @@ class Capture(object):
                 if self._currentseq > 0:
                     listener_socket.close()
                     self._flush_window(message_window)
+                    self._send_worker_termination_chars()
                     self._kill = True
                 else:
-                    self._logger.info('Listener timed out waiting for data')
+                    # wait forever for the first message
                     continue
             if payload_size > 0:
                 seq_num, = struct.unpack('<L', raw_seq)
