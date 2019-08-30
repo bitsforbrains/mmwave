@@ -22,13 +22,14 @@ class Capture(object):
         try:
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_socket.settimeout(1)
+            udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             udp_socket.bind((self.bind_address, 4098))
             self._listening = True
             return udp_socket
         except:
             self._logger.error('Unhandled exception binding to socket')
             self._listening = False
-            return False
+            return None
 
     @staticmethod
     def process_message(sock):
@@ -97,7 +98,10 @@ class Capture(object):
             self._logger.warn("No output sinks registered")
 
         listener_socket = self._bind()
-        print('Bound to port 4098')
+        if listener_socket is not None:
+            print('Bound to port 4098')
+        else:
+            print('Could not bind to UDP port')
         while self._kill is False:
             try:
                 payload_size = 0
