@@ -4,9 +4,9 @@ from time import time
 from dataformats import VALID_OUTPUT_FORMATS
 
 
-class FileWriter(object):
+class BinFileWriter(object):
 
-    def __init__(self, name='FileWriter', output_filename='output.bin', overwrite=False, output_format='RAW_NO_SEQ'):
+    def __init__(self, name='BinFileWriter', output_filename='output.bin', overwrite=False, output_format='RAW_NO_SEQ'):
         self._logger = logging.getLogger(__name__)
         self._name = name
         self._output_filename = output_filename
@@ -14,17 +14,26 @@ class FileWriter(object):
         self._overwrite = overwrite
         self._initialized = False
 
-    def receive(self, data):
+    def receive(self, channel):
+        self._logger.info('BinFileWriter output sink started')
+        # loop until we receive the stats summary
+        ch_out, ch_in = channel
+        ch_in.close()
+        self._logger.debug('BinFileWriter output sink listening for data on pipe {0}'.format(ch_out))
         while True:
-            # loop until we receive the termination sequence
-            if data == b'\xAF\xAF':
+            data = ch_out.recv()
+            self._logger.debug('BinFileWriter output sink got a message, processing received data')
+            if 'out_of_order' in data:
+                self._logger.info('BinFileWriter output sink worker received summary stats, exiting')
                 break
             if self._initialized is False:
                 self._initialized = True
                 if os.path.isfile(self.output_filename) and not self.overwrite:
+                    self._logger.debug('BinFileWriter output file exists, creating unique filename')
                     file_path, file_name = os.path.split(self.output_filename)
                     file_base, file_ext = os.path.splitext(file_name)
-                    self.output_filename = os.path.join(file_path, '{0}-{1}{2}'.format(file_base, int(time()), file_ext))
+                    self.output_filename = os.path.join(file_path, '{0}-{1}{2}'.format(
+                        file_base, int(time()), file_ext))
                 with open(self.output_filename, 'wb') as out_file:
                     out_file.write(data)
             else:

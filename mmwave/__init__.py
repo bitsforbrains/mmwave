@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
 from .core import *
-from .filewriter import *
+from .binfilewriter import *
 from .dataformats import *
 
 __version__ = '0.1.0'

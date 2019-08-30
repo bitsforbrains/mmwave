@@ -1,28 +1,32 @@
 import socket
 import struct
 import logging
+import json
 from multiprocessing import Process, Pipe
 from dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 
 class Capture(object):
 
-    def __init__(self, bind_address='0.0.0.0', source_format='RAW', message_window_size=16):
+    def __init__(self, bind_address='0.0.0.0', source_format='RAW', message_window_size=16, socket_buffer=None):
         self._logger = logging.getLogger(__name__)
         self._bind_address = bind_address
+        self._socket_buffer = socket_buffer
         self._source_format = source_format
         self._output_sinks = []
         self._workers = {}
         self._message_window_size = message_window_size
         self._kill = False
         self._listening = False
-        self._currentseq = 0
+        self._current_seq = 0
         self._stats = {'messages': 0, 'bytes': 0, 'out_of_order': 0, 'missing': 0}
 
     def _bind(self):
-        self._logger.debug('Starting listener')
+        self._logger.debug('Binding listener to UDP port 4098')
         try:
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            if self._socket_buffer is not None:
+                udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self._socket_buffer)
             udp_socket.settimeout(1)
             udp_socket.bind((self.bind_address, 4098))
             self._listening = True
@@ -61,11 +65,11 @@ class Capture(object):
 
     def _process_message_window(self, message_window):
         msg = message_window.pop(0)
-        if msg['seq_num'] - self._currentseq != 1:
+        if msg['seq_num'] - self._current_seq != 1:
             self._logger.warning('Missing sequence number (curr={0}, next={1})'
-                                 .format(self._currentseq, msg['seq_num']))
+                                 .format(self._current_seq, msg['seq_num']))
             self._stats['missing'] += 1
-        self._currentseq = msg['seq_num']
+        self._current_seq = msg['seq_num']
         # publish to all sinks. sink processing is parallel, but publishing is serial...
         for sink in self.output_sinks:
             if self.source_format not in VALID_OUTPUT_FORMATS[sink.output_format]['valid_sources']:
@@ -76,16 +80,17 @@ class Capture(object):
                 data = b''
                 for field in VALID_OUTPUT_FORMATS[sink.output_format]['fields']:
                     data += msg[field]
+                self._logger.debug('Sending data to output sink on pipe {0}'.format(ch_in))
                 ch_in.send(data)
 
     def _flush_window(self, message_window):
         while len(message_window) > 0:
             self._process_message_window(message_window)
 
-    def _send_worker_termination_chars(self):
+    def _send_capture_stats(self):
         for sink in self.output_sinks:
             ch_out, ch_in = self._workers[sink.__hash__()]['pipe']
-            data = b'\xAF\xAF'
+            data = json.dumps(self.stats)
             ch_in.send(data)
 
     def add_sink(self, output_sink):
@@ -97,6 +102,7 @@ class Capture(object):
                 self._workers[output_sink.__hash__()]['pipe'] = Pipe()
                 self._workers[output_sink.__hash__()]['worker'] = (
                     Process(target=output_sink.receive, args=(self._workers[output_sink.__hash__()]['pipe'],)))
+                self._logger.debug('output sink table contains: '.format(self._workers))
             return True
         except:
             self._logger.error('Unhandled exception adding output sink')
@@ -104,16 +110,17 @@ class Capture(object):
 
     def start(self):
         message_window = []
-        self._currentseq = 0
+        self._current_seq = 0
         self._stats = {'messages': 0, 'bytes': 0, 'out_of_order': 0, 'missing': 0}
 
         if self.output_sinks is []:
             self._logger.warn("No output sinks registered")
         # start each sink's worker processes (will run until a termination signal is received)
         for sink in self.output_sinks:
+            self._logger.debug('Starting output sink worker with hash {0}'.format(sink.__hash__()))
             self._workers[sink.__hash__()]['worker'].daemon = True
             self._workers[sink.__hash__()]['worker'].start()
-
+            self._logger.debug('Worker status is {0}'.format(self._workers[sink.__hash__()]['worker'].is_alive()))
         listener_socket = self._bind()
 
         while self._kill is False:
@@ -121,10 +128,11 @@ class Capture(object):
                 payload_size = 0
                 payload, raw_seq, payload_size, raw_capture_size = self.process_message(listener_socket)
             except socket.timeout:
-                if self._currentseq > 0:
+                if self._current_seq > 0:
+                    self._logger.info('socket timed out waiting for capture data, cleaning up')
                     listener_socket.close()
                     self._flush_window(message_window)
-                    self._send_worker_termination_chars()
+                    self._send_capture_stats()
                     self._kill = True
                 else:
                     # wait forever for the first message
@@ -133,8 +141,8 @@ class Capture(object):
                 seq_num, = struct.unpack('<L', raw_seq)
                 capture_size, = struct.unpack('<Q', raw_capture_size + b'\x00\x00')
 
-                self._logger.debug('Received message (seq/payload-size/total-capture-size):',
-                                   seq_num, payload_size, capture_size)
+                self._logger.debug('Received message (seq/payload-size/total-capture-size): {0}/{1}/{2}'.format(
+                    seq_num, payload_size, capture_size))
                 raw_payload_size = struct.pack('<L', len(payload))
 
                 message = {'seq_num': seq_num, 'raw_seq': raw_seq, 'raw_payload_size': raw_payload_size,
@@ -159,6 +167,14 @@ class Capture(object):
                 self._bind_address = value
             except socket.error:
                 raise ValueError('source format invalid (must be RAW or DATA_SEPARATED)')
+
+    @property
+    def socket_buffer(self):
+        return self._socket_buffer
+
+    @socket_buffer.setter
+    def socket_buffer(self, value):
+        self._socket_buffer = value
 
     @property
     def source_format(self):
