@@ -1,7 +1,8 @@
+from __future__ import absolute_import
 import logging
 import os
 from time import time
-from dataformats import VALID_OUTPUT_FORMATS
+from .dataformats import VALID_OUTPUT_FORMATS
 
 
 class BinFileWriter(object):
@@ -23,7 +24,7 @@ class BinFileWriter(object):
         while True:
             data = ch_out.recv()
             self._logger.debug('BinFileWriter output sink got a message, processing received data')
-            if 'out_of_order' in data:
+            if b'out_of_order' in data:
                 self._logger.info('BinFileWriter output sink worker received summary stats, exiting')
                 break
             if self._initialized is False:

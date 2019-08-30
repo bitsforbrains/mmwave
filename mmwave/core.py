@@ -1,9 +1,10 @@
+from __future__ import absolute_import
 import socket
 import struct
 import logging
 import json
 from multiprocessing import Process, Pipe
-from dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
+from .dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 
 class Capture(object):
@@ -90,7 +91,7 @@ class Capture(object):
     def _send_capture_stats(self):
         for sink in self.output_sinks:
             ch_out, ch_in = self._workers[sink.__hash__()]['pipe']
-            data = json.dumps(self.stats)
+            data = bytearray(json.dumps(self.stats), 'utf8')
             ch_in.send(data)
 
     def add_sink(self, output_sink):
