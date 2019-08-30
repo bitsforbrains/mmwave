@@ -1,7 +1,7 @@
 import logging
 import os
 from time import time
-from dataformats import VALID_OUTPUT_FORMATS
+from .dataformats import VALID_OUTPUT_FORMATS
 
 
 class FileWriter(object):

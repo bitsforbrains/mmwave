@@ -1,7 +1,7 @@
 import socket
 import struct
 import logging
-from dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
+from .dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 
 class Capture(object):
@@ -97,7 +97,7 @@ class Capture(object):
             self._logger.warn("No output sinks registered")
 
         listener_socket = self._bind()
-
+        print('Bound to port 4098')
         while self._kill is False:
             try:
                 payload_size = 0
@@ -112,6 +112,7 @@ class Capture(object):
                     continue
             if payload_size > 0:
                 seq_num, = struct.unpack('<L', raw_seq)
+                print('Processing message with sequence number {0}'.format(seq_num))
                 capture_size, = struct.unpack('<Q', raw_capture_size + b'\x00\x00')
 
                 self._logger.debug('Received message (seq/payload-size/total-capture-size):',
