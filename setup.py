@@ -9,7 +9,7 @@ tests = [p + '.tests' for p in packages]
 
 
 setup(name='mmwave',
-      version='0.1.0',
+      version='0.1.1',
       description='Module for capturing/processing MMWave data from the TI DCA1000EVM Data Capture Card',
       url='https://github.com/bitsforbrains/mmwave.git',
       maintainer='Aaron Finney',
