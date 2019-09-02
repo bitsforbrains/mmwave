@@ -6,9 +6,10 @@ from .dataformats import VALID_SOURCE_FORMATS, VALID_OUTPUT_FORMATS
 
 class Capture(object):
 
-    def __init__(self, bind_address='0.0.0.0', source_format='RAW', message_window_size=16):
+    def __init__(self, bind_address='0.0.0.0', source_format='RAW', message_window_size=16, listen_port=4098):
         self._logger = logging.getLogger(__name__)
         self._bind_address = bind_address
+        self._listen_port = listen_port
         self._source_format = source_format
         self._output_sinks = []
         self._message_window_size = message_window_size
@@ -23,7 +24,7 @@ class Capture(object):
             udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             udp_socket.settimeout(1)
             udp_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            udp_socket.bind((self.bind_address, 4098))
+            udp_socket.bind((self.bind_address, self._listen_port))
             self._listening = True
             return udp_socket
         except:
@@ -145,6 +146,14 @@ class Capture(object):
                 self._bind_address = value
             except socket.error:
                 raise ValueError('source format invalid (must be RAW or DATA_SEPARATED)')
+
+    @property
+    def listen_port(self):
+        return self._listen_port
+
+    @listen_port.setter
+    def listen_port(self, value):
+        self._listen_port = value
 
     @property
     def source_format(self):
