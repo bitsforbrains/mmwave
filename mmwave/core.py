@@ -100,7 +100,7 @@ class Capture(object):
 
         listener_socket = self._bind()
         if listener_socket is not None:
-            print('Bound to port 4098')
+            print('Bound to port {0}'.format(self.listen_port))
         else:
             print('Could not bind to UDP port')
         while self._kill is False:
